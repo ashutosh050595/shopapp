@@ -56,13 +56,16 @@ const App: React.FC = () => {
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
+      {/* Sidebar is fixed width, hidden on mobile in future iterations, but for now we focus on content accessibility */}
       <Sidebar 
         currentView={currentView} 
         onChangeView={setCurrentView} 
         currentUser={user}
         onLogout={handleLogout}
       />
-      <main className="flex-1 ml-64 overflow-y-auto h-screen p-2">
+      
+      {/* Main Content Area */}
+      <main className="flex-1 ml-64 h-screen overflow-y-auto overflow-x-hidden p-2 md:p-4">
         {renderView()}
       </main>
     </div>

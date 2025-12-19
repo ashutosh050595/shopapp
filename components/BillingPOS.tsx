@@ -1,7 +1,25 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { db } from '../services/db';
 import { Product, Customer, CartItem, Invoice, ShopSettings } from '../types';
-import { Search, Plus, Trash2, Printer, Save, User, CreditCard, RefreshCw, AlertCircle, ScanBarcode, Smartphone, X, CheckCircle, Share2, Mail, MessageSquare } from 'lucide-react';
+import { Search, Plus, Trash2, Printer, Save, User, CreditCard, RefreshCw, AlertCircle, ScanBarcode, Smartphone, X, CheckCircle, Share2, Mail, MessageSquare, Download } from 'lucide-react';
+
+// --- Helper: Number to Words (Simplified for Indian Context) ---
+const numToWords = (num: number): string => {
+  const a = ['', 'One ', 'Two ', 'Three ', 'Four ', 'Five ', 'Six ', 'Seven ', 'Eight ', 'Nine ', 'Ten ', 'Eleven ', 'Twelve ', 'Thirteen ', 'Fourteen ', 'Fifteen ', 'Sixteen ', 'Seventeen ', 'Eighteen ', 'Nineteen '];
+  const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+  const n = ('000000000' + num).substr(-9).match(/^(\d{2})(\d{2})(\d{2})(\d{1})(\d{2})$/);
+  if (!n) return '';
+
+  let str = '';
+  str += (Number(n[1]) !== 0) ? (a[Number(n[1])] || b[n[1][0] as any] + ' ' + a[n[1][1] as any]) + 'Crore ' : '';
+  str += (Number(n[2]) !== 0) ? (a[Number(n[2])] || b[n[2][0] as any] + ' ' + a[n[2][1] as any]) + 'Lakh ' : '';
+  str += (Number(n[3]) !== 0) ? (a[Number(n[3])] || b[n[3][0] as any] + ' ' + a[n[3][1] as any]) + 'Thousand ' : '';
+  str += (Number(n[4]) !== 0) ? (a[Number(n[4])] || b[n[4][0] as any] + ' ' + a[n[4][1] as any]) + 'Hundred ' : '';
+  str += (Number(n[5]) !== 0) ? ((str !== '') ? 'and ' : '') + (a[Number(n[5])] || b[n[5][0] as any] + ' ' + a[n[5][1] as any]) + 'Only' : 'Only';
+
+  return str;
+};
 
 const BillingPOS: React.FC = () => {
   // Data State
@@ -23,7 +41,7 @@ const BillingPOS: React.FC = () => {
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
   
   // New Customer Form State
-  const [newCustomer, setNewCustomer] = useState({ name: '', mobile: '', email: '', address: '' });
+  const [newCustomer, setNewCustomer] = useState({ name: '', mobile: '', email: '', address: '', gstin: '' });
   
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -197,7 +215,6 @@ const BillingPOS: React.FC = () => {
 
   const handleShareEmail = () => {
       if (!completedInvoice) return;
-      // Find customer email from list if available
       const cust = customers.find(c => c.mobile === completedInvoice.customerMobile);
       const email = cust?.email || '';
       
@@ -266,124 +283,185 @@ const BillingPOS: React.FC = () => {
     setCustomers(db.getCustomers()); 
     setSelectedCustomer(c);
     setShowAddCustomerModal(false);
-    setNewCustomer({ name: '', mobile: '', email: '', address: '' });
+    setNewCustomer({ name: '', mobile: '', email: '', address: '', gstin: '' });
   };
 
   return (
-    <div className="flex flex-col h-full p-4 gap-4 animate-fade-in text-sm md:text-base relative">
+    <div className="flex flex-col h-full p-2 md:p-4 gap-4 animate-fade-in text-sm md:text-base relative overflow-x-hidden">
       
       {/* Styles for Printing */}
       <style>{`
         @media print {
           body * { visibility: hidden; }
           .invoice-modal, .invoice-modal * { visibility: visible; }
-          .invoice-modal { position: fixed; left: 0; top: 0; width: 100%; height: 100%; z-index: 9999; background: white; overflow: visible; }
+          .invoice-modal { 
+            position: absolute; 
+            left: 0; 
+            top: 0; 
+            width: 100%; 
+            margin: 0;
+            padding: 0;
+            background: white; 
+            z-index: 9999;
+          }
           .no-print { display: none !important; }
-          .print-full-width { width: 100% !important; max-width: none !important; }
+          @page { size: A4; margin: 10mm; }
         }
       `}</style>
 
-      {/* --- Success / Invoice Modal --- */}
+      {/* --- GST Compliant Invoice Modal --- */}
       {completedInvoice && (
-         <div className="absolute inset-0 bg-slate-900/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-           <div className="bg-white w-full max-w-2xl rounded-xl shadow-2xl flex flex-col max-h-[90vh] invoice-modal">
+         <div className="absolute inset-0 bg-slate-900/80 z-50 flex items-start justify-center p-0 md:p-4 backdrop-blur-sm overflow-y-auto">
+           <div className="bg-white w-full max-w-3xl md:rounded-xl shadow-2xl flex flex-col invoice-modal min-h-screen md:min-h-0">
               
               {/* Header - No Print */}
-              <div className="flex justify-between items-center p-4 border-b bg-green-50 no-print rounded-t-xl">
+              <div className="flex justify-between items-center p-4 border-b bg-green-50 no-print">
                  <div className="flex items-center gap-2 text-green-700 font-bold text-lg">
-                    <CheckCircle size={24} /> Sale Completed Successfully!
+                    <CheckCircle size={24} /> Invoice Generated
                  </div>
-                 <button onClick={handleNewBill} className="text-slate-500 hover:text-slate-800">
+                 <button onClick={handleNewBill} className="text-slate-500 hover:text-slate-800 p-2">
                     <X size={24} />
                  </button>
               </div>
 
-              {/* Invoice Content - Printable */}
-              <div className="p-8 overflow-y-auto flex-1 print-full-width">
-                 <div className="text-center mb-6">
-                    <h1 className="text-2xl font-bold uppercase tracking-widest text-slate-800">{settings.shopName}</h1>
-                    <p className="text-slate-500 whitespace-pre-line text-sm">{settings.address}</p>
-                    <p className="text-slate-500 text-sm">Phone: {settings.phone} | GSTIN: {settings.gstin}</p>
-                 </div>
-
-                 <div className="flex justify-between mb-6 text-sm border-b pb-4">
-                    <div>
-                       <p className="text-slate-500">Invoice To:</p>
-                       <p className="font-bold text-slate-800 text-lg">{completedInvoice.customerName}</p>
-                       <p className="text-slate-600">Mobile: {completedInvoice.customerMobile}</p>
+              {/* GST Invoice Content */}
+              <div className="p-8 bg-white text-slate-900 print:p-0">
+                 {/* Invoice Header */}
+                 <div className="border border-slate-300">
+                    <div className="flex justify-between p-4 border-b border-slate-300 bg-slate-50">
+                        <div>
+                            <h1 className="text-2xl font-bold uppercase">{settings.shopName}</h1>
+                            <p className="whitespace-pre-line text-sm text-slate-600">{settings.address}</p>
+                            <p className="text-sm font-semibold mt-1">GSTIN: {settings.gstin}</p>
+                            <p className="text-sm">Phone: {settings.phone}</p>
+                        </div>
+                        <div className="text-right">
+                            <h2 className="text-xl font-bold text-slate-800">TAX INVOICE</h2>
+                            <p className="text-sm text-slate-500">(Original for Recipient)</p>
+                        </div>
                     </div>
-                    <div className="text-right">
-                       <p className="font-bold text-slate-800 text-lg">INVOICE #{completedInvoice.id}</p>
-                       <p className="text-slate-600">Date: {new Date(completedInvoice.date).toLocaleDateString()}</p>
-                       <p className="text-slate-600">Mode: {completedInvoice.paymentMode}</p>
+
+                    <div className="flex border-b border-slate-300">
+                        <div className="w-1/2 p-4 border-r border-slate-300">
+                            <p className="text-xs text-slate-500 uppercase font-bold mb-1">Details of Receiver (Billed To)</p>
+                            <p className="font-bold">{completedInvoice.customerName}</p>
+                            <p className="text-sm">{completedInvoice.customerMobile}</p>
+                            {/* Assuming address exists for customer, would go here */}
+                        </div>
+                        <div className="w-1/2 p-4">
+                            <div className="flex justify-between mb-1">
+                                <span className="text-sm font-semibold">Invoice No:</span>
+                                <span className="font-bold">{completedInvoice.id}</span>
+                            </div>
+                            <div className="flex justify-between mb-1">
+                                <span className="text-sm font-semibold">Invoice Date:</span>
+                                <span>{new Date(completedInvoice.date).toLocaleDateString()}</span>
+                            </div>
+                            <div className="flex justify-between mb-1">
+                                <span className="text-sm font-semibold">Payment Mode:</span>
+                                <span>{completedInvoice.paymentMode}</span>
+                            </div>
+                        </div>
                     </div>
-                 </div>
 
-                 <table className="w-full text-left mb-6 text-sm">
-                    <thead>
-                      <tr className="border-b-2 border-slate-800">
-                        <th className="py-2">Item</th>
-                        <th className="py-2 text-center">Qty</th>
-                        <th className="py-2 text-right">Price</th>
-                        <th className="py-2 text-right">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {completedInvoice.items.map((item, idx) => (
-                        <tr key={idx}>
-                          <td className="py-2">
-                             <div className="font-medium">{item.name}</div>
-                             {item.selectedImei && <div className="text-xs text-slate-500">IMEI/SN: {item.selectedImei}</div>}
-                          </td>
-                          <td className="py-2 text-center">{item.quantity}</td>
-                          <td className="py-2 text-right">{item.price}</td>
-                          <td className="py-2 text-right">{(item.price * item.quantity).toFixed(2)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                 </table>
+                    {/* Items Table */}
+                    <table className="w-full text-xs md:text-sm text-left">
+                        <thead className="bg-slate-100 border-b border-slate-300">
+                            <tr>
+                                <th className="p-2 border-r border-slate-300 w-10 text-center">SN</th>
+                                <th className="p-2 border-r border-slate-300">Description of Goods</th>
+                                <th className="p-2 border-r border-slate-300 w-16 text-center">HSN</th>
+                                <th className="p-2 border-r border-slate-300 w-12 text-center">Qty</th>
+                                <th className="p-2 border-r border-slate-300 text-right">Rate</th>
+                                <th className="p-2 border-r border-slate-300 text-right">Taxable</th>
+                                <th className="p-2 border-r border-slate-300 text-center w-16">CGST</th>
+                                <th className="p-2 border-r border-slate-300 text-center w-16">SGST</th>
+                                <th className="p-2 text-right">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-300">
+                            {completedInvoice.items.map((item, idx) => {
+                                const basePrice = item.price * item.quantity;
+                                const discountAmount = (basePrice * item.discount) / 100;
+                                const taxableValue = basePrice - discountAmount;
+                                const taxRate = item.gstPercent;
+                                const cgst = (taxableValue * (taxRate/2)) / 100;
+                                const sgst = (taxableValue * (taxRate/2)) / 100;
+                                const total = taxableValue + cgst + sgst;
 
-                 <div className="flex justify-end mb-6">
-                    <div className="w-48 space-y-2 text-sm">
-                       <div className="flex justify-between">
-                          <span className="text-slate-600">Subtotal:</span>
-                          <span className="font-medium">{completedInvoice.subtotal.toFixed(2)}</span>
-                       </div>
-                       <div className="flex justify-between">
-                          <span className="text-slate-600">Tax (GST):</span>
-                          <span className="font-medium">{completedInvoice.totalTax.toFixed(2)}</span>
-                       </div>
-                       <div className="flex justify-between text-green-600">
-                          <span className="">Discount:</span>
-                          <span className="font-medium">-{completedInvoice.totalDiscount.toFixed(2)}</span>
-                       </div>
-                       <div className="flex justify-between text-lg font-bold border-t pt-2 border-slate-300">
-                          <span>Total:</span>
-                          <span>₹{completedInvoice.totalAmount.toLocaleString()}</span>
-                       </div>
+                                return (
+                                    <tr key={idx}>
+                                        <td className="p-2 border-r border-slate-300 text-center">{idx + 1}</td>
+                                        <td className="p-2 border-r border-slate-300">
+                                            <div className="font-semibold">{item.name}</div>
+                                            {item.selectedImei && <div className="text-[10px] text-slate-500">IMEI: {item.selectedImei}</div>}
+                                        </td>
+                                        <td className="p-2 border-r border-slate-300 text-center">{item.hsn}</td>
+                                        <td className="p-2 border-r border-slate-300 text-center">{item.quantity}</td>
+                                        <td className="p-2 border-r border-slate-300 text-right">{item.price.toFixed(2)}</td>
+                                        <td className="p-2 border-r border-slate-300 text-right">{taxableValue.toFixed(2)}</td>
+                                        <td className="p-2 border-r border-slate-300 text-right text-[10px]">
+                                            <div>{cgst.toFixed(2)}</div>
+                                            <div className="text-slate-500">({taxRate/2}%)</div>
+                                        </td>
+                                        <td className="p-2 border-r border-slate-300 text-right text-[10px]">
+                                            <div>{sgst.toFixed(2)}</div>
+                                            <div className="text-slate-500">({taxRate/2}%)</div>
+                                        </td>
+                                        <td className="p-2 text-right font-semibold">{total.toFixed(2)}</td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                        <tfoot className="border-t border-slate-300 bg-slate-50 font-bold">
+                            <tr>
+                                <td colSpan={5} className="p-2 border-r border-slate-300 text-right">Total</td>
+                                <td className="p-2 border-r border-slate-300 text-right">{completedInvoice.subtotal.toFixed(2)}</td>
+                                <td className="p-2 border-r border-slate-300 text-right">{(completedInvoice.totalTax/2).toFixed(2)}</td>
+                                <td className="p-2 border-r border-slate-300 text-right">{(completedInvoice.totalTax/2).toFixed(2)}</td>
+                                <td className="p-2 text-right">₹{completedInvoice.totalAmount.toFixed(2)}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+
+                    <div className="flex border-t border-slate-300">
+                        <div className="w-2/3 p-4 border-r border-slate-300 text-sm">
+                            <p className="font-bold mb-1">Amount in Words:</p>
+                            <p className="italic bg-slate-100 p-1 mb-4 capitalize">{numToWords(Math.round(completedInvoice.totalAmount))}</p>
+                            
+                            <p className="font-bold text-xs mb-1">Terms & Conditions:</p>
+                            <p className="text-[10px] whitespace-pre-wrap">{settings.footerMessage}</p>
+                        </div>
+                        <div className="w-1/3 p-4 text-center flex flex-col justify-between">
+                             <div className="text-right">
+                                 <p className="text-xs">Taxable Amount: {completedInvoice.subtotal.toFixed(2)}</p>
+                                 <p className="text-xs">Total Tax: {completedInvoice.totalTax.toFixed(2)}</p>
+                                 <p className="text-xs">Round Off: {(completedInvoice.totalAmount - (completedInvoice.subtotal + completedInvoice.totalTax)).toFixed(2)}</p>
+                                 <h3 className="text-lg font-bold border-t border-slate-400 mt-2 pt-1">Total: ₹{Math.round(completedInvoice.totalAmount)}</h3>
+                             </div>
+                             <div className="mt-8">
+                                 <p className="text-xs font-bold mb-4">For {settings.shopName}</p>
+                                 <p className="text-[10px] text-slate-500">(Authorized Signatory)</p>
+                             </div>
+                        </div>
                     </div>
-                 </div>
-
-                 <div className="text-center text-xs text-slate-400 mt-8 border-t pt-4">
-                    <p>{settings.footerMessage}</p>
-                    <p className="mt-1">Generated by ShopFlow</p>
                  </div>
               </div>
 
               {/* Actions Footer - No Print */}
-              <div className="p-4 bg-slate-50 border-t flex justify-between items-center no-print rounded-b-xl">
+              <div className="p-4 bg-slate-50 border-t flex flex-wrap justify-between items-center no-print rounded-b-xl gap-2">
                  <button onClick={handleNewBill} className="text-slate-500 font-medium hover:text-slate-800">
                     Close / New Bill
                  </button>
-                 <div className="flex gap-2">
-                    <button onClick={handleShareWhatsapp} className="flex items-center gap-2 bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600">
-                       <MessageSquare size={18} /> WhatsApp
+                 <div className="flex flex-wrap gap-2">
+                    <button onClick={handleShareWhatsapp} className="flex items-center gap-2 bg-green-500 text-white px-3 py-2 rounded-lg hover:bg-green-600 text-sm">
+                       <MessageSquare size={16} /> WhatsApp
                     </button>
-                    <button onClick={handleShareEmail} className="flex items-center gap-2 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">
-                       <Mail size={18} /> Email
+                    <button onClick={handleShareEmail} className="flex items-center gap-2 bg-blue-500 text-white px-3 py-2 rounded-lg hover:bg-blue-600 text-sm">
+                       <Mail size={16} /> Email
                     </button>
-                    <button onClick={handlePrint} className="flex items-center gap-2 bg-slate-800 text-white px-4 py-2 rounded-lg hover:bg-slate-900">
-                       <Printer size={18} /> Print Invoice
+                    <button onClick={handlePrint} className="flex items-center gap-2 bg-slate-800 text-white px-3 py-2 rounded-lg hover:bg-slate-900 text-sm">
+                       <Download size={16} /> Print / Download PDF
                     </button>
                  </div>
               </div>
@@ -421,6 +499,11 @@ const BillingPOS: React.FC = () => {
                           <textarea className="w-full border p-2 rounded" 
                                  value={newCustomer.address} onChange={e => setNewCustomer({...newCustomer, address: e.target.value})} />
                       </div>
+                      <div>
+                          <label className="block text-sm font-medium text-slate-700">GSTIN (Optional)</label>
+                          <input type="text" className="w-full border p-2 rounded" 
+                                 value={newCustomer.gstin} onChange={e => setNewCustomer({...newCustomer, gstin: e.target.value})} />
+                      </div>
                       <button type="submit" className="w-full bg-blue-600 text-white py-2 rounded-lg font-bold hover:bg-blue-700">
                           Save Customer
                       </button>
@@ -436,17 +519,18 @@ const BillingPOS: React.FC = () => {
             <Printer size={24} className="text-blue-600" /> 
             Billing POS
           </h2>
-          <div className="h-6 w-px bg-slate-200"></div>
-          <div className="text-slate-500 font-medium">
-             Invoice Date: <span className="text-slate-800">{invoiceDate}</span>
+          <div className="h-6 w-px bg-slate-200 hidden md:block"></div>
+          <div className="text-slate-500 font-medium hidden md:block">
+             Date: <span className="text-slate-800">{invoiceDate}</span>
           </div>
         </div>
       </div>
 
-      <div className="flex flex-1 gap-4 overflow-hidden">
+      {/* Main Layout - Stack on Mobile/Zoomed, Side-by-Side on Desktop */}
+      <div className="flex flex-col xl:flex-row flex-1 gap-4 overflow-y-auto overflow-x-hidden pb-20">
         
         {/* Left Side: Product Search & Cart */}
-        <div className="flex-1 flex flex-col gap-4">
+        <div className="flex-1 flex flex-col gap-4 min-w-0">
           
           {/* Product Search / Scan Input */}
           <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 relative z-10">
@@ -494,9 +578,9 @@ const BillingPOS: React.FC = () => {
           </div>
 
           {/* Cart Table */}
-          <div className="bg-white flex-1 rounded-lg shadow-sm border border-slate-200 overflow-hidden flex flex-col">
-            <div className="overflow-y-auto flex-1 p-2">
-              <table className="w-full text-left border-collapse">
+          <div className="bg-white flex-1 rounded-lg shadow-sm border border-slate-200 overflow-hidden flex flex-col min-h-[300px]">
+            <div className="overflow-x-auto flex-1 p-2">
+              <table className="w-full text-left border-collapse min-w-[600px] xl:min-w-0">
                 <thead className="bg-slate-50 text-slate-500 text-xs uppercase sticky top-0">
                   <tr>
                     <th className="p-3">Product</th>
@@ -534,7 +618,7 @@ const BillingPOS: React.FC = () => {
                             <button 
                               onClick={() => updateQuantity(item.cartId, -1)}
                               className="w-6 h-6 bg-slate-200 rounded hover:bg-slate-300 text-slate-600 flex items-center justify-center"
-                              disabled={!!item.selectedImei} // Disable qty change for unique items
+                              disabled={!!item.selectedImei} 
                             >-</button>
                             <span className="w-8 text-center font-medium">{item.quantity}</span>
                             <button 
@@ -586,7 +670,7 @@ const BillingPOS: React.FC = () => {
         </div>
 
         {/* Right Side: Customer & Checkout */}
-        <div className="w-96 flex flex-col gap-4">
+        <div className="w-full xl:w-96 flex flex-col gap-4">
           
           {/* Customer Selection */}
           <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
