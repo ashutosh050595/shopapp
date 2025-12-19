@@ -1,0 +1,5 @@
+{
+  "name": "ShopFlow Offline Billing",
+  "description": "A robust, offline-first billing and inventory management system designed for small retail shops. Features POS billing, inventory tracking, customer management, and sales reporting.",
+  "requestFramePermissions": []
+}
